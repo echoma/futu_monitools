@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<script src="https://cdn.bootcss.com/jquery/3.3.1/jquery.min.js"></script>
+<script>
+var is_nwjs = (typeof nw != 'undefined');
+var is_nwjsdev = is_nwjs && (window.navigator.plugins.namedItem('Native Client') !== null);
+function empty(o) {
+    return o==null || o==undefined || o==0 || o.length==0;
+}
+if (is_nwjsdev)
+    nw.Window.get().showDevTools();
+
+var opn_win = null;
+function setOpener(nw_win)
+{
+    opn_win = nw_win;
+    init();
+}
+var doc_ready = 0;
+$(document).ready(function(){
+    doc_ready = 1;
+    init();
+})
+
+var inited = 0;
+function init() {
+    if (inited!=0)
+        return;
+    if (doc_ready==0 || opn_win==null)
+        return;
+    inited = 1;
+    console.log('加载最新报警');
+    setInterval(function(){opn_win.window.loadAlert();},500000);
+    opn_win.window.loadAlert();
+}
+var prevAlertList = null;
+var latestAlertList = null;
+function updateAlertList(list) {
+    console.log('更新最新的报警数据');
+    console.log(list);
+    prevAlertList = latestAlertList;
+    latestAlertList = list;
+    if (prevAlertList==null) {
+        notifyRecent(latestAlertList);
+    } else {
+        notifyDiff(prevAlertList, latestAlertList);
+    }
+    if (latestAlertList.length>0)
+        opn_win.window.desktopNotify(list[1]);
+}
+</script>
+</head>
+<body></body>
+</html>

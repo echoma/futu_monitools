@@ -1,0 +1,14 @@
+{
+  "name":"监控台桌面助手",
+  "main":"http://monitor.server.com/",
+  "nodejs":true,
+  "node-remote":"*://*/*",
+  "inject_js_end":"inject.js",
+  "window":{
+    "width":900,
+    "height":800,
+    "min-width":600,
+    "min-height":400,
+    "title":"监控台桌面助手"
+  }
+}
