@@ -1,6 +1,6 @@
 {
-  "name":"监控台桌面助手",
-  "main":"http://monitor.server.com/",
+  "name":"monitool",
+  "main":"list.html",
   "nodejs":true,
   "node-remote":"*://*/*",
   "inject_js_end":"inject.js",
@@ -9,6 +9,6 @@
     "height":800,
     "min-width":600,
     "min-height":400,
-    "title":"监控台桌面助手"
+    "title":"监控台桌面助手（10分钟内有报警的将标红）"
   }
 }

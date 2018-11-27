@@ -3,21 +3,15 @@ var is_nwjsdev = is_nwjs && (window.navigator.plugins.namedItem('Native Client')
 function empty(o) {
     return o==null || o==undefined || o==0 || o.length==0;
 }
-var ntf_win = null; // 通知窗口
-var lst_win = null; // 列表窗口
-if(!empty($)) {
+var in_monitor = 0;
+if(typeof($)!='undefined') {
     if (is_nwjsdev)
         nw.Window.get().showDevTools();
     $(document).ready(function(){
-        if($('#gtitle_div').size()==0)    // 确保当前处于monitor页面
-            return;
-        console.log('加载notify.html和list.html');
-        nw.Window.open('notify.html',{"show":false}, function(new_win){ntf_win=new_win;});
-        nw.Window.open('list.html',{"show":false}, function(new_win){
-            lst_win=new_win;
-            lst_win.on('loaded', function() {
-                lst_win.window.setOpener(nw.Window.get());});
-            });
+        in_monitor = $('#gtitle_div').length!=0;
+        if (in_monitor) {
+            setTimeout(function(){window.location.reload();}, 1*60*1000);
+        }
     });
 }
 function adjustJSON(t){
@@ -33,7 +27,7 @@ function adjustJSON(t){
     }
     return ret;
 }
-function loadAlert() {
+function loadAlert(cb_win) {
     $.ajax({
         url:'/alert', 
         cache:false, 
@@ -48,20 +42,20 @@ function loadAlert() {
             limit:100,
             moduleid:1
         },
+        timeout:4000,
         success:function(t){
             // 报警后台返回的json的key都缺少双引号，使用正则处理加上双引号后才能正常解析
             t = adjustJSON(t);
             var data = JSON.parse(t);
             if (!empty(data)) {
-                lst_win.window.updateAlertList(data.data);
+                cb_win.updateAlertList(data.data);
             }
         },
-        error:function(){
-            console.log('加载报警数据出错');
+        error:function(req,txtstatus,msg){
+            if(txtstatus!='timeout')
+                console.log('加载报警数据出错');
+            else
+                console.log('加载报警数据超时');
         }
     });
-}
-function desktopNotify(rec) {
-    console.log('桌面通知: '+rec.alertmsg);
-    ntf_win.window.notify(rec.mixname, rec.alertmsg);
 }

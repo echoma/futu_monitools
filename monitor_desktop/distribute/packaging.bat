@@ -1,0 +1,2 @@
+Add-Type -A System.IO.Compression.FileSystem [IO.Compression.ZipFile]::CreateFromDirectory('..\nw_package', '..\.build\package.nw')
+copy /b D:\Program Files\nwjs-v0.34.5-win-x64\nw.exe+..\.build\package.nw ..\.build\monitool.exe
