@@ -15,7 +15,6 @@ if (is_nwjsdev)
 
 mon_win = null;
 $(document).ready(function(){
-    nw.Window.get().showDevTools();
     mon_win = window.frames['frame_monitor'];
     console.log('检查是否已登录进报警台');
     setInterval(function(){
@@ -30,18 +29,18 @@ function refreshAlertIfLoggedIn() {
     var ts = (new Date()).getTime()/1000;
     if (typeof(mon_win.in_monitor)!='undefined' && 1==mon_win.in_monitor) {
         // 已登录
-        console.log('已登录');
+        //console.log('已登录');
         // 显示新版报警列表
         $('#main_con').show();
-        // 如果超过10秒未尝试刷新，则刷新
-        if (ts-last_try_refresh_alert>10) {
+        // 如果超过N秒未尝试刷新，则刷新
+        if (ts-last_try_refresh_alert>6) {
             last_try_refresh_alert = ts;
             mon_win.loadAlert(window);
         }
     }
     else {
         // 未登录
-        console.log('未登录');
+        //console.log('未登录');
         // 如果超过5秒处于未登录，则隐藏报警列表以显示登录页
         if (first_switch_to_not_logged_in==0) {
             first_switch_to_not_logged_in = ts;
@@ -55,7 +54,13 @@ function desktopNotify(rec) {
     var b = rec.alertmsg;
     b = b.replace(/\{.*\}/,'');
     console.log('桌面通知: 【'+t+'】'+b);
-	var notification = new Notification(t,{body:b});
+    var ntf = new Notification(t,{body:b});
+    ntf.rec = rec;
+    ntf.onclick = function(e) {
+        nw.Window.get().focus();
+        blinkAlert(ntf.rec);
+        ntf.close();
+    }
 }
 // 更新告警列表
 var prevAlertList = null;
@@ -78,6 +83,7 @@ function updateAlertList(list) {
 function refreshAlertList(list) {
     var ts = (new Date()).getTime()/1000;
     var dbox = $('#alert_list_box');
+    // 刷新报警内容
     for (var i=0; i<list.length; ++i) {
         var rec = list[i];
         var did = `alert_${rec.seqid}`;
@@ -88,7 +94,7 @@ function refreshAlertList(list) {
             var latest = new Date();
             latest.setTime(rec.latestalerttime*1000);
             var alert_level = (ts-rec.latestalerttime<600)? 'danger':'warning';
-            dalt = $(`<div class="alert alert-${alert_level}" role="alert" latestalerttime="${rec.latestalerttime}" id="${did}"></div>`);
+            dalt = $(`<div class="alert alert-${alert_level} shadow" role="alert" latestalerttime="${rec.latestalerttime}" id="${did}"></div>`);
             part1_txt = rec.alertmsg.substr(0, rec.alertmsg.indexOf('{'));
             part2_txt = rec.alertmsg.substring(rec.alertmsg.indexOf('{'), rec.alertmsg.indexOf('}')+1);
             part3_txt = rec.alertmsg.substr(rec.alertmsg.indexOf('}')+1);
@@ -100,10 +106,40 @@ function refreshAlertList(list) {
             dalt.append($(`<span>${part1_txt}</span>`));
             dalt.append(dlink);
             dalt.append($(`<span>${part3_txt}</span>`));
-            dalt.append($(`<span class="font-italic" style="padding:5px;">(${timeAgo(ts - rec.latestalerttime)}第${rec.alertcount}次告警)</span>`));
-            dbox.append(dalt);
+            dalt.append($(`<span class="font-italic" style="padding:5px;" name="timeago">(${timeAgo(ts - rec.latestalerttime)}第${rec.alertcount}次告警)</span>`));
+            if (Math.random()<0.5)
+                dbox.append(dalt);
+            else
+                dbox.prepend(dalt);
+        } else {
+            dalt.find('[name=timeago]').text(`(${timeAgo(ts - rec.latestalerttime)}第${rec.alertcount}次告警)`);
         }
     }
+    // 按报警从新到旧排序，最多排200次
+    for (var i=0; i<200; ++i) {
+        if (0==resortOneOfAlertList())
+            break;
+    }
+}
+// 重新对报警列表进行排序，每次只调整一个报警，并且排名只调整一位
+function resortOneOfAlertList() {
+    var dbox = $('#alert_list_box');
+    var dlist = dbox.children('[latestalerttime]');
+    var last_ts = (new Date()).getTime()/1000;
+    var last_dalt = null;
+    for (var i=0; i<dlist.length; ++i) {
+        var dalt = $(dlist[i]);
+        var ts = parseInt(dalt.attr('latestalerttime'));
+        if (ts > last_ts && last_dalt!=null) {
+            dalt.remove();
+            console.log('排序发生');
+            last_dalt.before(dalt);
+            return 1;
+        }
+        last_ts = ts;
+        last_dalt = dalt;
+    }
+    return 0;
 }
 // 计算`多少时间以前`的字符串
 function timeAgo(sec) {
@@ -150,6 +186,15 @@ function notifyDiff(old_list, new_list) {
 }
 function browse(url) {
     nw.Shell.openExternal(url);
+}
+function blinkAlert(rec) {
+    console.log(`闪动 ${rec.alertmsg}`);
+    var did = `alert_${rec.seqid}`;
+    var dalt = $(`#${did}`);
+    console.log(dalt.length);
+    dalt.addClass('border-danger text-danger');
+    var intl = setInterval(function(){dalt.toggleClass('border-danger text-danger')},300);
+    setTimeout(function(){clearInterval(intl); dalt.removeClass('border-danger text-danger');},6000);
 }
 </script>
 </head>
