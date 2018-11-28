@@ -22,10 +22,10 @@ if(typeof($)!='undefined') {
     });
 }
 function adjustJSON(t){
-    var lines = t.split("\n");
-    var ret = '';
-    for(var i=0; i<lines.length; ++i) {
-        var idx = lines[i].indexOf(':');
+    let lines = t.split("\n");
+    let ret = '';
+    for(let i=0; i<lines.length; ++i) {
+        let idx = lines[i].indexOf(':');
         if (idx<1) {
             ret += lines[i]+'\n';
         } else {
@@ -59,16 +59,59 @@ function loadAlert(cb_win) {
                 return;
             }
             t = adjustJSON(t);
-            var data = JSON.parse(t);
+            let data = JSON.parse(t);
             if (!empty(data)) {
                 cb_win.updateAlertList(data.data);
             }
         },
         error:function(req,txtstatus,msg){
             if(txtstatus!='timeout')
-                console.log('加载报警数据出错');
+                cb_win.console.log('加载报警数据出错');
             else
-                console.log('加载报警数据超时');
+                cb_win.console.log('加载报警数据超时');
+        }
+    });
+}
+// 处理并结束告警
+function dealAndEndAlert(seqid, reason, cb_win) {
+    // 标记为处理中
+    if (empty(reason))
+        reason = 'EndedViaMonitool';
+    cb_win.console.log(`标记告警${seqid}为处理中`);
+    $.ajax({
+        url:'/alert', 
+        cache:false, 
+        dataType:'text',
+        async: true,
+        method: "POST",
+        data: {
+            action:"editalert",
+            "alertwrapbean.reason":"",
+            "alertwrapbean.recordseqids":seqid,
+            "alertwrapbean.status":1,
+            moduleid:1
+        },
+        timeout:4000,
+        success:function(t){
+            cb_win.console.log(`标记告警${seqid}为已处理`);
+            $.ajax({
+                url:'/alert', 
+                cache:false, 
+                dataType:'text',
+                async: true,
+                method: "POST",
+                data: {
+                    action:"editalert",
+                    "alertwrapbean.reason":reason,
+                    "alertwrapbean.recordseqids":seqid,
+                    "alertwrapbean.status":3,
+                    moduleid:19
+                },
+                timeout:4000,
+                success:function(t){
+                    cb_win.console.log(`标记完毕${seqid}`);
+                }
+            });
         }
     });
 }

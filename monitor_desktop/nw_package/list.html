@@ -16,7 +16,7 @@ function empty(o) {
 if (is_nwjsdev)
     nw.Window.get().showDevTools();
 
-mon_win = null;
+var mon_win = null;
 $(document).ready(function(){
     mon_win = window.frames['frame_monitor'];
     console.log('检查是否已登录进报警台');
@@ -29,7 +29,7 @@ $(document).ready(function(){
 var first_switch_to_not_logged_in = 0;
 var last_try_refresh_alert = 0;
 function refreshAlertIfLoggedIn() {
-    var ts = (new Date()).getTime()/1000;
+    let ts = (new Date()).getTime()/1000;
     if (typeof(mon_win.logged_in)!='undefined' && mon_win.logged_in) {
         // 已登录
         //console.log('已登录');
@@ -56,12 +56,13 @@ function refreshAlertIfLoggedIn() {
 }
 // 发送桌面通知
 function desktopNotify(rec) {
-    var t = rec.mixname;
-    var b = rec.alertmsg;
+    let t = rec.mixname;
+    let b = rec.alertmsg;
     b = b.replace(/\{.*\}/,'');
-    var ico = 'http://chittagongit.com//images/icon-alert/icon-alert-6.jpg';
+    //let ico = 'http://chittagongit.com//images/icon-alert/icon-alert-6.jpg';
+    let ico = 'icon-warning.png';
     console.log('桌面通知: 【'+t+'】'+b);
-    var ntf = new Notification(t,{body:b, icon:ico});
+    let ntf = new Notification(t,{body:b, icon:ico});
     ntf.rec = rec;
     ntf.onclick = function(e) {
         nw.Window.get().focus();
@@ -71,11 +72,11 @@ function desktopNotify(rec) {
 }
 // 跟进告警记录获取相关属性图片
 function alertImage(rec) {
-    var ico = undefined;
-    var latest = new Date();
+    let ico = undefined;
+    let latest = new Date();
     latest.setTime(rec.latestalerttime*1000);
-    var ico_path_part1 = sprintf('%04d_%02d', latest.getFullYear(), latest.getMonth()+1);
-    var ico_path_part2 = sprintf('%04d%02d%02d', latest.getFullYear(), latest.getMonth()+1, latest.getDate());
+    let ico_path_part1 = sprintf('%04d_%02d', latest.getFullYear(), latest.getMonth()+1);
+    let ico_path_part2 = sprintf('%04d%02d%02d', latest.getFullYear(), latest.getMonth()+1, latest.getDate());
     if (rec.mixtype==1)
         ico = `http://172.28.12.3/graph/ServerGif/ServerGif_${rec.mixid}/${ico_path_part1}/${rec.mixid}_${rec.attrid}_${ico_path_part2}.gif?${Math.random()}`;
     else if(rec.mixtype==2)
@@ -86,8 +87,6 @@ function alertImage(rec) {
 var prevAlertList = null;
 var latestAlertList = null;
 function updateAlertList(list) {
-    console.log('更新最新的报警数据');
-    //console.log(list);
     // 展示列表
     prevAlertList = latestAlertList;
     latestAlertList = list;
@@ -101,25 +100,25 @@ function updateAlertList(list) {
 }
 // 刷新报警列表
 function refreshAlertList(list) {
-    var ts = (new Date()).getTime()/1000;
-    var dbox = $('#alert_list_box');
+    let ts = (new Date()).getTime()/1000;
+    let dbox = $('#alert_list_box');
     // 刷新报警内容
-    for (var i=0; i<list.length; ++i) {
-        var rec = list[i];
-        var did = `alert_${rec.seqid}`;
-        var dalt = $(`#${did}`);
+    for (let i=0; i<list.length; ++i) {
+        let rec = list[i];
+        let did = `alert_${rec.seqid}`;
+        let dalt = $(`#${did}`);
+        let alert_level = (ts-rec.latestalerttime<600)? 'danger':'warning';
         if (dalt.length==0) {
-            var alert_level = (ts-rec.latestalerttime<600)? 'danger':'warning';
             dalt = $(`<div class="alert alert-${alert_level} shadow" role="alert" latestalerttime="${rec.latestalerttime}" id="${did}"></div>`);
             part1_txt = rec.alertmsg.substr(0, rec.alertmsg.indexOf('{'));
             part2_txt = rec.alertmsg.substring(rec.alertmsg.indexOf('{'), rec.alertmsg.indexOf('}')+1);
             part3_txt = rec.alertmsg.substr(rec.alertmsg.indexOf('}')+1);
-            var dlink = $(`<a target="_blank"></a>`).text(part2_txt);
+            let dlink = $(`<a target="_blank"></a>`).text(part2_txt);
             if (rec.mixtype==1)
                 dlink.attr('href', `javascript:browse("http://monitor.server.com/link/graph/servid:${rec.mixid}")`);
             else
                 dlink.attr('href', `javascript:browse("http://monitor.server.com/link/graph/viewid:${rec.mixid}")`);
-            var dimg = $(`<a name="detail" href="#" style="padding:10px">详情</a>`);
+            let dimg = $(`<a name="detail" href="#" style="padding:10px">详情</a>`);
             dimg.attr('href', `javascript:showAlert(${rec.seqid})`);
             dalt.append($(`<span>${part1_txt}</span>`));
             dalt.append(dlink);
@@ -128,27 +127,32 @@ function refreshAlertList(list) {
             dalt.append(dimg);
             dbox.append(dalt);
         } else {
-            dalt.find('[name=timeago]').text(`(${timeAgo(ts - rec.latestalerttime)}第 ${rec.alertcount} 次告警)`);
+            dalt.attr('latestalerttime', rec.latestalerttime);
+            dalt.find('[name=timeago]').text(`(${timeAgo(ts - rec.latestalerttime)}第${rec.alertcount}次告警)`);
+            if (dalt.hasClass('alert-danger') && alert_level=='warning')
+                dalt.removeClass('alert-danger').addClass('alert-warning');
+            else if (dalt.hasClass('alert-warning') && alert_level=='danger')
+                dalt.removeClass('alert-warning').addClass('alert-danger');
         }
     }
     // 按报警从新到旧排序，最多排200次
-    for (var i=0; i<200; ++i) {
+    for (let i=0; i<200; ++i) {
         if (0==resortOneOfAlertList())
             break;
     }
 }
 // 重新对报警列表进行排序，每次只调整一个报警，并且排名只调整一位
 function resortOneOfAlertList() {
-    var dbox = $('#alert_list_box');
-    var dlist = dbox.children('[latestalerttime]');
-    var last_ts = (new Date()).getTime()/1000;
-    var last_dalt = null;
-    for (var i=0; i<dlist.length; ++i) {
-        var dalt = $(dlist[i]);
-        var ts = parseInt(dalt.attr('latestalerttime'));
+    let dbox = $('#alert_list_box');
+    let dlist = dbox.children('[latestalerttime]');
+    let last_ts = (new Date()).getTime()/1000;
+    let last_dalt = null;
+    for (let i=0; i<dlist.length; ++i) {
+        let dalt = $(dlist[i]);
+        let ts = parseInt(dalt.attr('latestalerttime'));
         if (ts > last_ts && last_dalt!=null) {
             dalt.remove();
-            console.log('排序发生');
+            //console.log('排序发生');
             last_dalt.before(dalt);
             return 1;
         }
@@ -162,7 +166,7 @@ function timeAgo(sec) {
     sec = parseInt(sec);
     if (sec<=0)
         sec = 1;
-    var txt = `${sec}秒前`;
+    let txt = `${sec}秒前`;
     if (sec>=2*3600)
         txt = `${parseInt(sec/3600)}小时前`;
     else if (sec>=300)
@@ -171,32 +175,46 @@ function timeAgo(sec) {
 }
 // 将最新的报警做桌面通知
 function notifyRecent(list) {
-    var ts = (new Date()).getTime()/1000;
-    for (var i=0; i<list.length; ++i) {
-        var rec = list[i];
+    let ts = (new Date()).getTime()/1000;
+    for (let i=0; i<list.length; ++i) {
+        let rec = list[i];
         // 60秒内的才处理
         if(ts-rec.latestalerttime<60) {
             desktopNotify(rec);
         }
     }
 }
-// 比较新旧报警列表，将新报警展示出来
+// 比较新旧报警列表，将新报警展示出来，将旧报警置灰
 function notifyDiff(old_list, new_list) {
-    for (var i=0; i<new_list.length; ++i) {
-        var rec = new_list[i];
-        var found = 0;
-        for (var i=0; i<old_list.length; ++i) {
-            if (old_list[i].seqid==rec.seqid) {
+    // 旧报警全部标记为过期
+    for (let i=0; i<old_list.length; ++i) {
+        old_list[i].expired = 1;
+    }
+    // 遍历最新的报警列表，查看哪些是首次出现的报警，查看旧报警中哪些还继续生效中
+    for (let i=0; i<new_list.length; ++i) {
+        let rec = new_list[i];
+        let found = 0;
+        for (let j=0; j<old_list.length; ++j) {
+            if (old_list[j].seqid==rec.seqid) {
                 found = 1;
+                old_list[j].expired = 0;
                 break;
             }
         }
         rec.found_in_old = found;
     }
-    for (var i=0; i<new_list.length; ++i) {
-        var rec = new_list[i];
+    // 对首次出现的报警做桌面通知
+    for (let i=0; i<new_list.length; ++i) {
+        let rec = new_list[i];
         if (rec.found_in_old==0) {
             desktopNotify(rec);
+        }
+    }
+    // 对旧报警中已经不再生效的置灰
+    for (let i=0; i<old_list.length; ++i) {
+        let rec = old_list[i];
+        if (rec.expired) {
+            grayAlert(rec);
         }
     }
 }
@@ -208,33 +226,50 @@ function browse(url) {
 function blinkAlert(rec) {
     console.log(`闪动 ${rec.alertmsg}`);
     $('#alert_img_box').dialog('close');
-    var did = `alert_${rec.seqid}`;
-    var dalt = $(`#${did}`);
+    let did = `alert_${rec.seqid}`;
+    let dalt = $(`#${did}`);
     dalt.addClass('border-danger text-danger');
-    var intl = setInterval(function(){dalt.toggleClass('border-danger text-danger')},300);
+    let intl = setInterval(function(){dalt.toggleClass('border-danger text-danger')},300);
     setTimeout(function(){clearInterval(intl); dalt.removeClass('border-danger text-danger');},6000);
+}
+// 置灰指定的告警
+function grayAlert(rec) {
+    console.log(`置灰 ${rec.alertmsg}`);
+    let did = `alert_${rec.seqid}`;
+    let dalt = $(`#${did}`);
+    dalt.removeClass('alert-danger alert-warning').addClass('alert-secondary');
+    dalt.find('[name=detail]').hide();
 }
 // 查找指定告警的信息
 function findAlert(seqid) {
-    for (var i=0; i<latestAlertList.length; ++i) {
-        var rec = latestAlertList[i];
+    for (let i=0; i<latestAlertList.length; ++i) {
+        let rec = latestAlertList[i];
         if (rec.seqid==seqid)
             return rec;
     }
     return null;
 }
-// 显示告警详情
+// 告警详情对话框初始化
 $(document).ready(function(){
-    var dbox = $('#alert_box');
+    let dbox = $('#alert_box');
     dbox.dialog({
         autoOpen:false,
         closeOnEscape:true,
-        width:500,
         open:function(e,ui){ refreshAlertBox(); }
     });
+    dbox.find('[name=deal_end_alert]').click(function(){
+        if (confirm('确认要结束本告警吗？')) {
+            mon_win.dealAndEndAlert(
+                dbox.attr('seqid'), 
+                dbox.find('[name=deal_end_reason]').val(),
+                window
+            );
+        }
+    });
 });
+// 显示告警详情
 function showAlert(seqid) {
-    var dbox = $('#alert_box').attr('seqid', seqid);
+    let dbox = $('#alert_box').attr('seqid', seqid);
     console.log(`展示报警 ${seqid}`)
     if (dbox.dialog('isOpen'))
         refreshAlertBox();
@@ -242,41 +277,25 @@ function showAlert(seqid) {
         dbox.dialog('open');
 }
 function refreshAlertBox() {
-    var dbox = $('#alert_box');
-    var seqid = dbox.attr('seqid');
-    var rec = findAlert(seqid);
+    let dbox = $('#alert_box');
+    let seqid = dbox.attr('seqid');
+    let rec = findAlert(seqid);
     if (!empty(rec)) {
-        var start = new Date();
+        let start = new Date();
         start.setTime(rec.alertstarttime*1000);
-        var latest = new Date();
+        let latest = new Date();
         latest.setTime(rec.latestalerttime*1000);
-        dbox.dialog('option','title',`报警${rec.seqid}`);
+        dbox.dialog('option','title',`报警#${rec.seqid}`);
         dbox.find('[name=attr_id]').val(rec.attrid).focus().select();
-        dbox.find('[name=start_time]').val(start.toLocaleString());
-        dbox.find('[name=latest_time]').val(latest.toLocaleString());
+        dbox.find('[name=start_time]').val(start.toLocaleString('zh-CN',{hour12:false}));
+        dbox.find('[name=latest_time]').val(latest.toLocaleString('zh-CN',{hour12:false}));
         dbox.find('[name=count]').val(rec.alertcount);
     } else {
         dbox.dialog('option','title',`报警已清理?`);
         document.getElementById('alert_box_form').reset();
     }
 }
-// 处理并结束告警
-function dealAndEndAlert(seqid) {
-    /*
-action	editalert
-alertwrapbean.reason	
-alertwrapbean.recordseqids	21441695
-alertwrapbean.status	1
-moduleid	2
 
-
-action	editalert
-alertwrapbean.reason	clear
-alertwrapbean.recordseqids	21441694
-alertwrapbean.status	3
-moduleid	19
-    */
-}
 </script>
 </head>
 <body>
@@ -284,34 +303,33 @@ moduleid	19
     <div id="main_con" style="width:100%;height:100%;position:absolute;z-index:1; background:azure;">
         <div id="alert_list_box" style="padding:5px;"></div>
     </div>
-    <button type="button" class="btn btn-primary btn-sm" style="position:absolute;z-index:2;bottom:0px;right:0px;" onclick="nw.Window.get().reload();">Reload</button>
-    <div id="alert_box" style="display:none;">
-        <form id="alert_box_form">
+    <button type="button" class="btn btn-outline-primary btn-sm shadow" style="position:fixed;z-index:2;bottom:0px;right:0px;margin:5px;" onclick="chrome.runtime.reload();">重启</button>
+    <div id="alert_box" style="display:none;" class="shadow">
+        <form id="alert_box_form" class="px-4 py-3">
             <div class="form-group row">
-                <label class="col-sm-4 col-form-label">属性ID</label>
-                <div class="col-sm-8">
-                    <input type="text" name="attr_id" class="form-control" readonly>
-                </div>
+                <label for="attr_id">属性ID</label>
+                <input type="text" name="attr_id" class="form-control" readonly>
             </div>
             <div class="form-group row">
-                <label class="col-sm-4 col-form-label">开始报警时间</label>
-                <div class="col-sm-8">
-                    <input type="text" name="start_time" class="form-control" readonly>
-                </div>
+                <label for="start_time">开始报警时间</label>
+                <input type="text" name="start_time" class="form-control" readonly>
             </div>
             <div class="form-group row">
-                <label class="col-sm-4 col-form-label">最新报警时间</label>
-                <div class="col-sm-8">
-                    <input type="text" name="latest_time" class="form-control" readonly>
-                </div>
+                <label for="latest_time">最新报警时间</label>
+                <input type="text" name="latest_time" class="form-control" readonly>
             </div>
             <div class="form-group row">
-                <label class="col-sm-4 col-form-label">报警次数</label>
-                <div class="col-sm-8">
-                    <input type="text" name="count" class="form-control" readonly>
-                </div>
+                <label for="count">报警次数</label>
+                <input type="text" name="count" class="form-control" readonly>
             </div>
-          </form>
+        </form>
+        <div class="dropdown-divider"></div>
+        <div class="input-group mb-3">
+            <div class="input-group-prepend">
+                <button name="deal_end_alert" class="btn btn-primary" type="button">结束告警</button>
+            </div>
+            <input name="deal_end_reason" type="text" class="form-control" placeholder="填写结束告警的原因">
+        </div>
     </div>
 </body>
 </html>

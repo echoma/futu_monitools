@@ -5,10 +5,11 @@
   "node-remote":"*://*/*",
   "inject_js_end":"inject.js",
   "window":{
-    "width":900,
+    "width":460,
     "height":700,
-    "min-width":600,
+    "min-width":400,
     "min-height":400,
-    "title":"监控台桌面助手（10分钟内有报警的将标红）"
+    "title":"监控台桌面助手（10分钟内有报警的将标红）",
+    "icon":"icon-warning.png"
   }
 }
