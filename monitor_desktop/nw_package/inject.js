@@ -3,14 +3,21 @@ var is_nwjsdev = is_nwjs && (window.navigator.plugins.namedItem('Native Client')
 function empty(o) {
     return o==null || o==undefined || o==0 || o.length==0;
 }
-var in_monitor = 0;
+var in_monitor = window.location.href.indexOf('monitor.server.com')!=-1;
+var logged_in = 0;
 if(typeof($)!='undefined') {
     if (is_nwjsdev)
         nw.Window.get().showDevTools();
     $(document).ready(function(){
-        in_monitor = $('#gtitle_div').length!=0;
         if (in_monitor) {
-            setTimeout(function(){window.location.reload();}, 1*60*1000);
+            // 在·monitor页面里，1小时后刷新一次页面
+            setTimeout(function(){
+                window.location.reload();
+            }, 60*60*1000);
+            // 在·monitor页面里，2秒后检查是否是登录态界面
+            setTimeout(function(){
+                logged_in = $('#menubar').children().length!=0;
+            }, 1000);
         }
     });
 }
@@ -45,6 +52,12 @@ function loadAlert(cb_win) {
         timeout:4000,
         success:function(t){
             // 报警后台返回的json的key都缺少双引号，使用正则处理加上双引号后才能正常解析
+            if (t.length<=1) {
+                // 没有返回正常json内容，通常是因为登录已超时
+                if (cb_win.first_switch_to_not_logged_in==0)
+                    first_switch_to_not_logged_in = (new Date()).getTime()/1000;
+                return;
+            }
             t = adjustJSON(t);
             var data = JSON.parse(t);
             if (!empty(data)) {
