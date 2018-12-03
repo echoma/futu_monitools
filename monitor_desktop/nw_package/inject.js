@@ -10,14 +10,14 @@ if(typeof($)!='undefined') {
         nw.Window.get().showDevTools();
     $(document).ready(function(){
         if (in_monitor) {
-            // 在·monitor页面里，1小时后刷新一次页面
+            // 在monitor页面里，1小时后刷新一次页面
             setTimeout(function(){
                 window.location.reload();
             }, 60*60*1000);
-            // 在·monitor页面里，2秒后检查是否是登录态界面
+            // 在monitor页面里，0.5秒后检查是否是登录态界面
             setTimeout(function(){
                 logged_in = $('#menubar').children().length!=0;
-            }, 1000);
+            }, 500);
         }
     });
 }

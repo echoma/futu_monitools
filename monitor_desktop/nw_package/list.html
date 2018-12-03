@@ -17,52 +17,115 @@ if (is_nwjsdev)
     nw.Window.get().showDevTools();
 
 var mon_win = null;
-var sys_tray = null;
 $(document).ready(function(){
+    // 日志初始化
+    initLog();
+    // 调试工具条
+    if (is_nwjsdev)
+        $('#dev_btn_grp').removeClass('invisible');
     // 系统托盘初始化
+    setTimeout(function(){initTray();}, 3000);
+    // 定时隐藏tips信息
+    setTimeout(function(){$('#main_tips_info').remove();}, 20000);
+    // 告警相关初始化
+    mon_win = window.frames['frame_monitor'];
+    dlog('检查是否已登录进报警台');
+    setInterval(function(){
+        refreshAlertIfLoggedIn();
+    }, 500);
+    refreshAlertIfLoggedIn();
+});
+// 日志初始化
+var logger = null;
+var ilog,dlog,wlog,elog;
+function initLog() {
+    let log4js = require('log4js');
+    log4js.configure({
+        appenders:{
+            monitool: {
+                "type": 'file',
+                "filename": 'monitool.log',
+                "maxLogSize": 10240000,
+                "backups": 3,
+            }
+        },
+        categories: {
+            default: {
+                appenders: ['monitool'], 
+                level:is_nwjsdev?'debug':'info'
+            }
+        }
+    });
+    logger = log4js.getLogger('file');
+    logger.getLogCaller=function()
+    {
+        var e = new Error();
+        var lines=e.stack.split('\n');
+        return lines[3];
+    };
+    ilog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.info.apply(logger,args); };
+    dlog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.debug.apply(logger,args); };
+    wlog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.warning.apply(logger,args); };
+    elog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.error.apply(logger,args); };
+}
+// 初始化系统托盘
+var sys_tray = null;
+function initTray() {
+    if (null!=sys_tray) {
+        dlog('卸载当前托盘图标')
+        sys_tray.remove();
+        sys_tray = null;
+        nw.Window.get().sys_tray = window.sys_tray = null;
+    }
+    dlog('生成托盘图标')
     sys_tray = new nw.Tray({'title':'监控台桌面助手', 'tooltip':'监控台桌面助手', icon:iconPath()});
     sys_tray.mini_tips_shown = 0;
-    sys_tray.on('click', function(){
-        //console.log('HAHAHAHA-1');
+    sys_tray.on('click', function() {
+        ilog('tray click A');
         nw.Window.get().show();
-        //console.log('HAHAHAHA-2');
+        ilog('tray click B');
     });
-    nw.Window.get().on('minimize', function() {
+    /*nw.Window.get().on('minimize', function() {
         nw.Window.get().hide();
         if (sys_tray.mini_tips_shown==0) {
             sys_tray.mini_tips_shown = 1;
             new Notification('已最小化至系统托盘',{body:'点击托盘图标将显示报警窗口', icon:iconPath('safe')});
         }
-    });
-    // 定时隐藏tips信息
-    setTimeout(function(){$('#main_tips_info').remove();}, 30000);
-    // 告警相关初始化
-    mon_win = window.frames['frame_monitor'];
-    console.log('检查是否已登录进报警台');
-    setInterval(function(){
-        refreshAlertIfLoggedIn();
-    }, 1000);
-    refreshAlertIfLoggedIn();
-});
+    });*/
+    nw.Window.get().sys_tray = window.sys_tray = sys_tray;
+}
+// 随机更新tray图标
+function randTrayIcon() {
+    let r = Math.random();
+    if (r<0.5)
+        sys_tray.icon = iconPath('warning');
+    else
+        sys_tray.icon = iconPath('safe');
+}
 // 检查是否已登录，如果已登录则检查是否需要刷新报警列表
 var first_switch_to_not_logged_in = 0;
 var last_try_refresh_alert = 0;
+var last_login_status = 0;
 function refreshAlertIfLoggedIn() {
     let ts = (new Date()).getTime()/1000;
     if (typeof(mon_win.logged_in)!='undefined' && mon_win.logged_in) {
         // 已登录
-        //console.log('已登录');
+        if (0==last_login_status)
+            ilog('登录状态切换为:已登录');
+        last_login_status = 1;
         // 显示新版报警列表
         $('#main_con').show();
         // 如果超过N秒未尝试刷新，则刷新
-        if (ts-last_try_refresh_alert>6) {
+        if (ts-last_try_refresh_alert>=6) {
             last_try_refresh_alert = ts;
             mon_win.loadAlert(window);
         }
     }
     else {
         // 未登录
-        //console.log('未登录');
+        if (1==last_login_status)
+            ilog('登录状态切换为:未登录');
+        last_login_status = 0;
         // 如果超过20秒处于未登录，则显示登录界面
         if (ts - first_switch_to_not_logged_in>20) {
             if ($('#main_con:visible').length) {
@@ -79,7 +142,7 @@ function desktopNotify(rec) {
     let b = rec.alertmsg;
     b = b.replace(/\{.*\}/,'');
     let ico = iconPath('danger');
-    console.log('桌面通知: 【'+t+'】'+b);
+    ilog(`桌面通知(${rec.seqid}): 【${t}】${b}`);
     let ntf = new Notification(t,{body:b, icon:ico});
     ntf.rec = rec;
     ntf.onclick = function(e) {
@@ -105,6 +168,8 @@ function alertImage(rec) {
 var prevAlertList = null;
 var latestAlertList = null;
 function updateAlertList(list) {
+    if (empty(list))
+        return;
     // 展示列表
     prevAlertList = latestAlertList;
     latestAlertList = list;
@@ -172,7 +237,6 @@ function resortOneOfAlertList() {
         let ts = parseInt(dalt.attr('latestalerttime'));
         if (ts > last_ts && last_dalt!=null) {
             dalt.remove();
-            //console.log('排序发生');
             last_dalt.before(dalt);
             return 1;
         }
@@ -193,6 +257,24 @@ function timeAgo(sec) {
         txt = `${parseInt(sec/60)}分钟前`;
     return txt;
 }
+// 目前有个bug导致所有的报警都被当做新报警发送了桌面通知。这里可能是某些情况下的旧报警列表被清空导致的。
+// 因此弹出桌面通知前会对报警做个检查，报警的最后报出时间必须是10分钟以内，而且报警DOM创建时间必须在20秒以内。
+function basicCheckBeforeNotify(rec) {
+    let ts = (new Date()).getTime()/1000;
+    if (ts - rec.latestalerttime > 600) {
+        wlog(`此桌面通知(${rec.seqid})最后报出时间为10分钟以外，${rec.alertmsg}`);
+        return false;
+    }
+    let did = `alert_${rec.seqid}`;
+    let dalt = $(`#${did}`);
+    let dct = parseInt(dalt.attr('domcreatetime'));
+    if (dct>0 && ts - dct > 20) {
+        wlog(`此桌面通知(${rec.seqid})对应的DOM创建时间在20秒外，${rec.alertmsg}`);
+        return false;
+    }
+    dlog(`认为报警(${rec.seqid})符合桌面通知基本要求，ts=${ts}, latestalerttime=${rec.latestalerttime}，domcreatetime=${dct}`)
+    return true;
+}
 // 将最新的报警做桌面通知
 function notifyRecent(list) {
     let ts = (new Date()).getTime()/1000;
@@ -200,7 +282,8 @@ function notifyRecent(list) {
         let rec = list[i];
         // 60秒内的才处理
         if(ts-rec.latestalerttime<60) {
-            desktopNotify(rec);
+            if (basicCheckBeforeNotify(rec))
+                desktopNotify(rec);
         }
     }
 }
@@ -227,21 +310,8 @@ function notifyDiff(old_list, new_list) {
     for (let i=0; i<new_list.length; ++i) {
         let rec = new_list[i];
         if (rec.found_in_old==0) {
-            // 目前有个bug导致所有的报警都被当做新报警发送了桌面通知。这里可能是某些情况下的旧报警列表被清空导致的。
-            // 因此弹出桌面通知前会对报警做个检查，报警的最后报出时间必须是10分钟以内，而且报警DOM创建时间必须在20秒以内。
-            let ts = (new Date()).getTime()/1000;
-            if (ts - rec.latestalerttime > 600) {
-                console.log(`此桌面通知最后报出时间为10分钟以外，${rec.alertmsg}`);
-                continue;
-            }
-            let did = `alert_${rec.seqid}`;
-            let dalt = $(`#${did}`);
-            let dct = parseInt(dalt.attr('domcreatetime'));
-            if (dct>0 && ts - dct > 20) {
-                console.log(`此桌面通知对应的DOM创建时间在20秒外，${rec.alertmsg}`);
-                continue;
-            }
-            desktopNotify(rec);
+            if (basicCheckBeforeNotify(rec))
+                desktopNotify(rec);
         }
     }
     // 对旧报警中已经不再生效的置灰
@@ -258,7 +328,7 @@ function browse(url) {
 }
 // 找到指定告警的条目进行闪烁
 function blinkAlert(rec) {
-    console.log(`闪动 ${rec.alertmsg}`);
+    dlog(`闪动(${rec.seqid})：${rec.alertmsg}`);
     $('#alert_img_box').dialog('close');
     let did = `alert_${rec.seqid}`;
     let dalt = $(`#${did}`);
@@ -268,7 +338,7 @@ function blinkAlert(rec) {
 }
 // 置灰指定的告警
 function grayAlert(rec) {
-    console.log(`置灰 ${rec.alertmsg}`);
+    dlog(`置灰(${rec.seqid})：${rec.alertmsg}`);
     let did = `alert_${rec.seqid}`;
     let dalt = $(`#${did}`);
     dalt.removeClass('alert-danger alert-warning').addClass('alert-secondary');
@@ -277,6 +347,7 @@ function grayAlert(rec) {
 }
 // 将指定告警条目从界面隐藏掉
 function hideAlert(seqid) {
+    dlog(`隐藏${rec.seqid})：${rec.alertmsg}`);
     let did = `alert_${seqid}`;
     let dalt = $(`#${did}`);
     dalt.slideUp(400, function(){dalt.remove()});
@@ -311,7 +382,7 @@ $(document).ready(function(){
 // 显示告警详情
 function showAlert(seqid) {
     let dbox = $('#alert_box').attr('seqid', seqid);
-    console.log(`展示报警 ${seqid}`)
+    dlog(`展示报警(${seqid})`)
     if (dbox.dialog('isOpen'))
         refreshAlertBox();
     else
@@ -356,6 +427,8 @@ function iconPath(level='auto') {
 }
 // 更新窗口标题和托盘提示
 function updateWindowTray() {
+    if (empty(sys_tray))
+        return;
     let new_icon = iconPath();
     if (sys_tray.icon!=new_icon)
         sys_tray.icon = new_icon;
@@ -368,7 +441,22 @@ function updateWindowTray() {
     if (cnt_of_danger==0 && cnt_of_warning==0)
         title_prefix += '无告警';
     nw.Window.get().title = `(${title_prefix}) 监控台桌面助手`;
-    sys_tray.title = sys_tray.tooltip = `(${title_prefix}) 点击展示报警列表`;
+    let new_tray_title = `(${title_prefix}) 点击展示报警列表`;
+    if (sys_tray.tooltip!=new_tray_title)
+        sys_tray.title = sys_tray.tooltip = new_tray_title;
+}
+// 开关开发工具
+var devToolShown = 1;
+function toggleDevTool() {
+    let win = nw.Window.get();
+    if (devToolShown) {
+        nw.Window.get().closeDevTools();
+        devToolShown = 0;
+    }
+    else {
+        nw.Window.get().showDevTools();
+        devToolShown = 1;
+    }
 }
 </script>
 </head>
@@ -377,12 +465,17 @@ function updateWindowTray() {
     <div id="main_con" style="width:100%;height:100%;position:absolute;z-index:1; background:azure;">
         <div id="alert_list_box" style="padding:5px;"></div>
     </div>
+    <div class="btn-group invisible" id="dev_btn_grp" style="position:fixed;z-index:2;bottom:0px;left:0px;margin:5px;">
+        <button type="button" class="btn btn-outline-primary btn-sm shadow" onclick="toggleDevTool()">DevTool</button>
+        <button type="button" class="btn btn-outline-primary btn-sm shadow" onclick="initTray()">TrayReInit</button>
+        <button type="button" class="btn btn-outline-primary btn-sm shadow" onclick="randTrayIcon()">TrayIconRand</button>
+    </div>
     <button type="button" class="btn btn-outline-primary btn-sm shadow" style="position:fixed;z-index:2;bottom:0px;right:0px;margin:5px;" onclick="chrome.runtime.reload();">重启</button>
     <div id="main_tips_info" class="alert alert-info shadow alert-dismissible" role="alert" style="position:fixed;z-index:3;bottom:0px;margin:5px;">
         <p><small>告警列表中，发生在<b>10分钟内</b>的告警使用<b>红色背景</b>，其他未结束的告警使用黄色背景，已结束的告警使用灰色背景。</small></p>
-        <p><small>窗口<b>最小化</b>后程序会收缩到<b>系统托盘</b>上。红色托盘图标表示有红色报警，黄色托盘图标表示只有黄色报警，灰色托盘图标表示无报警。</small></p>
+        <p><small>程序有<b>系统托盘</b>图标。红色图标表示有红色报警，黄色图标表示只有黄色报警，灰色图标表示无报警。</small></p>
         <p><small>新告警将会在<b>托盘区弹出通知</b>。</small></p>
-        <p><small>本信息将在程序启动30秒后隐藏。</small></p>
+        <p><small>本信息将在程序启动20秒后隐藏。</small></p>
         <button type="button" class="close" data-dismiss="alert" aria-label="Close" onClick="$('#main_tips_info').remove();">
             <span aria-hidden="true">&times;</span>
         </button>
