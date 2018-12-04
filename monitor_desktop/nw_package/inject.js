@@ -54,21 +54,32 @@ function loadAlert(cb_win) {
             // 报警后台返回的json的key都缺少双引号，使用正则处理加上双引号后才能正常解析
             if (t.length<=1) {
                 // 没有返回正常json内容，通常是因为登录已超时
-                if (cb_win.first_switch_to_not_logged_in==0)
-                    first_switch_to_not_logged_in = (new Date()).getTime()/1000;
+                if (logged_in) {
+                    logged_in = 0;
+                    cb_win.wlog('加载报警数据返回内容异常，认定为登录已过期');
+                }
+                cb_win.wlog('加载报警数据返回内容异常，t='+t);
                 return;
             }
             t = adjustJSON(t);
-            let data = JSON.parse(t);
+            let data = null;
+            try {
+                data = JSON.parse(t);
+            } catch(e) {
+                cb_win.elog('解析报警数据文本异常，t='+t);
+            }
             if (!empty(data)) {
                 cb_win.updateAlertList(data.data);
+            } else {
+                cb_win.ilog('报警列表文本解析后为空数据');
+                cb_win.updateAlertList([]);
             }
         },
         error:function(req,txtstatus,msg){
             if(txtstatus!='timeout')
-                cb_win.console.log('加载报警数据出错');
+                cb_win.elog(`加载报警数据出错：${txtstatus}`);
             else
-                cb_win.console.log('加载报警数据超时');
+                cb_win.elog(`加载报警数据超时：${txtstatus}`);
         }
     });
 }
@@ -77,7 +88,7 @@ function dealAndEndAlert(seqid, reason, cb_win) {
     // 标记为处理中
     if (empty(reason))
         reason = 'EndedViaMonitool';
-    cb_win.console.log(`标记告警${seqid}为处理中`);
+    cb_win.ilog(`标记告警${seqid}为处理中`);
     $.ajax({
         url:'/alert', 
         cache:false, 
@@ -93,7 +104,8 @@ function dealAndEndAlert(seqid, reason, cb_win) {
         },
         timeout:4000,
         success:function(t){
-            cb_win.console.log(`标记告警${seqid}为已处理`);
+            // 标记为已处理
+            cb_win.ilog(`标记告警${seqid}为已处理`);
             $.ajax({
                 url:'/alert', 
                 cache:false, 
@@ -109,7 +121,7 @@ function dealAndEndAlert(seqid, reason, cb_win) {
                 },
                 timeout:4000,
                 success:function(t){
-                    cb_win.console.log(`标记完毕${seqid}`);
+                    cb_win.ilog(`标记完毕${seqid}`);
                 }
             });
         }
