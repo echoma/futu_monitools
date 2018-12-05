@@ -69,7 +69,7 @@ function initLog() {
     };
     ilog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.info.apply(logger,args); };
     dlog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.debug.apply(logger,args); };
-    wlog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.warning.apply(logger,args); };
+    wlog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.warn.apply(logger,args); };
     elog=function() { var args = Array.prototype.slice.call(arguments); args.push(logger.getLogCaller()); logger.error.apply(logger,args); };
 }
 // 初始化系统托盘
