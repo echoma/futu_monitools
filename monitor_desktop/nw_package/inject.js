@@ -5,6 +5,7 @@ function empty(o) {
 }
 var in_monitor = window.location.href.indexOf('monitor.server.com')!=-1;
 var logged_in = 0;
+var network_broken = 0;
 if(typeof($)!='undefined') {
     if (is_nwjsdev)
         nw.Window.get().showDevTools();
@@ -12,7 +13,8 @@ if(typeof($)!='undefined') {
         if (in_monitor) {
             // 在monitor页面里，1小时后刷新一次页面
             setTimeout(function(){
-                window.location.reload();
+                if (network_broken==0)
+                    window.location.reload();
             }, 60*60*1000);
             // 在monitor页面里，0.5秒后检查是否是登录态界面
             setTimeout(function(){
@@ -51,6 +53,7 @@ function loadAlert(cb_win) {
         },
         timeout:4000,
         success:function(t){
+            network_broken = 0;
             // 报警后台返回的json的key都缺少双引号，使用正则处理加上双引号后才能正常解析
             if (t.length<=1) {
                 // 没有返回正常json内容，通常是因为登录已超时
@@ -75,11 +78,13 @@ function loadAlert(cb_win) {
                 cb_win.updateAlertList([]);
             }
         },
-        error:function(req,txtstatus,msg){
-            if(txtstatus!='timeout')
-                cb_win.elog(`加载报警数据出错：${txtstatus}`);
+        error:function(req,txtStatus,errThrown){
+            if(txtStatus!='timeout')
+                cb_win.elog(`加载报警数据出错，txt=${txtStatus}`);
             else
-                cb_win.elog(`加载报警数据超时：${txtstatus}`);
+                cb_win.elog(`加载报警数据超时：txt=${txtStatus}`);
+            if (req.readyState==0)
+                network_broken = 1;
         }
     });
 }

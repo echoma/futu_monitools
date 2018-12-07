@@ -31,6 +31,10 @@ $(document).ready(function(){
     initTray();
     // 定时隐藏tips信息
     setTimeout(function(){$('#main_tips_info').remove();}, 20000);
+    // 监控系统的锁屏、休眠等
+    initSysWatch();
+    // 测试桌面通知
+    //return initTestDestopNotify();
     // 告警相关初始化
     mon_win = window.frames['frame_monitor'];
     dlog('检查是否已登录进报警台');
@@ -104,6 +108,31 @@ function randTrayIcon() {
     else
         sys_tray.icon = iconPath('safe');
 }
+// 桌面通知测试(目前就是配合锁屏、休眠的测试)
+function initTestDestopNotify() {
+    let num = 0;
+    setInterval(()=>{
+        ++num;
+        desktopNotify({
+            seqid: num,
+            mixname: num,
+            alertmsg: (new Date()).toLocaleTimeString()
+        });
+    }, 15000);
+}
+// 监控系统锁屏和休眠等
+//（目前ChromeExtensionAPI有bug，锁屏后仍然是active状态，直到输入解锁密码时又突然变成locked状态，解锁后立刻又编程active状态）
+var sys_idle_state = '';
+function initSysWatch() {
+    chrome.idle.queryState(86400000, onSysIdleStateChange);
+    chrome.idle.setDetectionInterval(86400000);
+    chrome.idle.onStateChanged.addListener(onSysIdleStateChange);
+}
+function onSysIdleStateChange(state) {
+    if (state!=sys_idle_state)
+        dlog(`sys_idle_state switch from ${sys_idle_state} to ${state}`);
+    sys_idle_state = state;
+}
 // 检查是否已登录，如果已登录则检查是否需要刷新报警列表
 var first_switch_to_not_logged_in = 0;
 var last_try_refresh_alert = 0;
@@ -148,13 +177,20 @@ function desktopNotify(rec) {
     b = b.replace(/\{.*\}/,'');
     let ico = iconPath('danger');
     ilog(`桌面通知(${rec.seqid}): 【${t}】${b}`);
-    let ntf = new Notification(t,{body:b, icon:ico});
+    let opt = {body:b, icon:ico};
+    if (sys_idle_state=='locked') {
+        ilog('\t系统处于锁屏状态，通知合并');
+        opt.body = `锁屏期间最后一次报警为【${t}】${b}`;
+        opt.tag = '锁屏期间消息合并';
+        t = '锁屏期间有新报警';
+    }
+    let ntf = new Notification(t, opt);
     ntf.rec = rec;
     ntf.onclick = function(e) {
         nw.Window.get().focus();
         blinkAlert(ntf.rec);
         ntf.close();
-    }
+    };
 }
 // 跟进告警记录获取相关属性图片
 function alertImage(rec) {
