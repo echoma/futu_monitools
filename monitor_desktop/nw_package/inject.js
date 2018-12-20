@@ -3,12 +3,16 @@ var is_nwjsdev = is_nwjs && (window.navigator.plugins.namedItem('Native Client')
 function empty(o) {
     return o==null || o==undefined || o==0 || o.length==0;
 }
+// 当前inject.js是否位于monitor页面(也有可能位于list.html)
 var in_monitor = window.location.href.indexOf('monitor.server.com')!=-1;
+
+if (in_monitor) {//--------BEGIN if(in_monitor)--------------
+
+// 当前monitor页面是否已经登录
 var logged_in = 0;
+// 当前monitor页面的网络是否被诊断为已断开
 var network_broken = 0;
 if(typeof($)!='undefined') {
-    if (is_nwjsdev)
-        nw.Window.get().showDevTools();
     $(document).ready(function(){
         if (in_monitor) {
             // 在monitor页面里，1小时后刷新一次页面
@@ -83,7 +87,7 @@ function loadAlert(cb_win) {
                 cb_win.elog(`加载报警数据出错，txt=${txtStatus}`);
             else
                 cb_win.elog(`加载报警数据超时：txt=${txtStatus}`);
-            if (req.readyState==0)
+            if (req.readyState==0) // 0说明请求压根没办法发送出去，一般就是网络断了
                 network_broken = 1;
         }
     });
@@ -132,3 +136,6 @@ function dealAndEndAlert(seqid, reason, cb_win) {
         }
     });
 }
+
+
+}//--------END if(in_monitor)--------------
