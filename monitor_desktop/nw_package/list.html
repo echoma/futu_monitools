@@ -8,10 +8,10 @@
 <link href="https://cdn.bootcss.com/jqueryui/1.12.1/jquery-ui.min.css" rel="stylesheet">
 <script src="https://cdn.bootcss.com/jqueryui/1.12.1/jquery-ui.min.js"></script>
 <script>
-if (is_nwjsdev)
-    nw.Window.get().showDevTools();
 var mon_win = null;
 $(document).ready(function(){
+    if (is_nwjsdev)
+        nw.Window.get().showDevTools();
     // 日志初始化
     initLog();
     // 全局错误处理
@@ -25,8 +25,6 @@ $(document).ready(function(){
     initTray();
     // 定时隐藏tips信息
     setTimeout(function(){$('#main_tips_info').remove();}, 20000);
-    // 监控系统的锁屏、休眠等
-    initSysWatch();
     // 测试桌面通知
     //return initTestDestopNotify();
     // 告警相关初始化
@@ -114,19 +112,6 @@ function initTestDestopNotify() {
         });
     }, 15000);
 }
-// 监控系统锁屏和休眠等
-//（目前ChromeExtensionAPI有bug，锁屏后仍然是active状态，直到输入解锁密码时又突然变成locked状态，解锁后立刻又编程active状态）
-var sys_idle_state = '';
-function initSysWatch() {
-    chrome.idle.queryState(86400000, onSysIdleStateChange);
-    chrome.idle.setDetectionInterval(86400000);
-    chrome.idle.onStateChanged.addListener(onSysIdleStateChange);
-}
-function onSysIdleStateChange(state) {
-    if (state!=sys_idle_state)
-        dlog(`sys_idle_state switch from ${sys_idle_state} to ${state}`);
-    sys_idle_state = state;
-}
 // 检查是否已登录，如果已登录则检查是否需要刷新报警列表
 var first_switch_to_not_logged_in = 0;
 var last_try_refresh_alert = 0;
@@ -163,41 +148,6 @@ function refreshAlertIfLoggedIn() {
             }
         }
     }
-}
-// 发送桌面通知
-function desktopNotify(rec) {
-    let t = rec.mixname;
-    let b = rec.alertmsg;
-    b = b.replace(/\{.*\}/,'');
-    let ico = iconPath('danger');
-    ilog(`桌面通知(${rec.seqid}): 【${t}】${b}`);
-    let opt = {body:b, icon:ico};
-    if (sys_idle_state=='locked') {
-        ilog('\t系统处于锁屏状态，通知合并');
-        opt.body = `锁屏期间最后一次报警为【${t}】${b}`;
-        opt.tag = '锁屏期间消息合并';
-        t = '锁屏期间有新报警';
-    }
-    let ntf = new Notification(t, opt);
-    ntf.rec = rec;
-    ntf.onclick = function(e) {
-        nw.Window.get().focus();
-        blinkAlert(ntf.rec);
-        ntf.close();
-    };
-}
-// 跟进告警记录获取相关属性图片
-function alertImage(rec) {
-    let ico = undefined;
-    let latest = new Date();
-    latest.setTime(rec.latestalerttime*1000);
-    let ico_path_part1 = sprintf('%04d_%02d', latest.getFullYear(), latest.getMonth()+1);
-    let ico_path_part2 = sprintf('%04d%02d%02d', latest.getFullYear(), latest.getMonth()+1, latest.getDate());
-    if (rec.mixtype==1)
-        ico = `http://172.28.12.3/graph/ServerGif/ServerGif_${rec.mixid}/${ico_path_part1}/${rec.mixid}_${rec.attrid}_${ico_path_part2}.gif?${Math.random()}`;
-    else if(rec.mixtype==2)
-        ico = `http://172.28.12.3/graph/ViewGif/ViewGif_${rec.mixid}/${ico_path_part1}/${rec.mixid}_${rec.attrid}_${ico_path_part2}.gif?${Math.random()}`;
-    return ico;
 }
 // 更新告警列表
 var prevAlertList = null;
@@ -267,7 +217,7 @@ function resortOneOfAlertList() {
     let dlist = dbox.children('[latestalerttime]');
     let last_ts = (new Date()).getTime()/1000;
     let last_dalt = null;
-    for (let i=0; i<dlist.length; ++i) {
+    for (let i=0; i<dlist.length && i<1000; ++i) {
         let dalt = $(dlist[i]);
         let ts = parseInt(dalt.attr('latestalerttime'));
         if (ts > last_ts && last_dalt!=null) {
@@ -310,10 +260,42 @@ function basicCheckBeforeNotify(rec) {
     dlog(`认为报警(${rec.seqid})符合桌面通知基本要求，ts=${ts}, latestalerttime=${rec.latestalerttime}，domcreatetime=${dct}`)
     return true;
 }
+// 发送桌面通知
+var pack_notifier = require('node-notifier');
+pack_notifier.on('click', (ntf, ntf_opt)=>{
+    nw.Window.get().focus();
+    blinkAlert(ntf_opt.rec);
+});
+const pack_path = require('path');
+function desktopNotify(rec) {
+    let opt = {};
+    opt.title = rec.mixname;
+    opt.message = rec.alertmsg.replace(/\{.*\}/,'');
+    console.log();
+    opt.icon = pack_path.join(process.cwd(), iconPath('danger'));
+    opt.sound = true;
+    opt.wait = true;
+    opt.rec = rec;
+    ilog(`桌面通知(${rec.seqid}): 【${opt.title}】${opt.message}`);
+    pack_notifier.notify(opt);
+}
+// 跟进告警记录获取相关属性图片
+function alertImage(rec) {
+    let ico = undefined;
+    let latest = new Date();
+    latest.setTime(rec.latestalerttime*1000);
+    let ico_path_part1 = sprintf('%04d_%02d', latest.getFullYear(), latest.getMonth()+1);
+    let ico_path_part2 = sprintf('%04d%02d%02d', latest.getFullYear(), latest.getMonth()+1, latest.getDate());
+    if (rec.mixtype==1)
+        ico = `http://172.28.12.3/graph/ServerGif/ServerGif_${rec.mixid}/${ico_path_part1}/${rec.mixid}_${rec.attrid}_${ico_path_part2}.gif?${Math.random()}`;
+    else if(rec.mixtype==2)
+        ico = `http://172.28.12.3/graph/ViewGif/ViewGif_${rec.mixid}/${ico_path_part1}/${rec.mixid}_${rec.attrid}_${ico_path_part2}.gif?${Math.random()}`;
+    return ico;
+}
 // 将最新的报警做桌面通知
 function notifyRecent(list) {
     let ts = (new Date()).getTime()/1000;
-    for (let i=0; i<list.length; ++i) {
+    for (let i=0; i<list.length && i<1000; ++i) {
         let rec = list[i];
         // 60秒内的才处理
         if(ts-rec.latestalerttime<60) {
@@ -325,14 +307,14 @@ function notifyRecent(list) {
 // 比较新旧报警列表，将新报警展示出来，将旧报警置灰
 function notifyDiff(old_list, new_list) {
     // 旧报警全部标记为过期
-    for (let i=0; i<old_list.length; ++i) {
+    for (let i=0; i<old_list.length && i<1000; ++i) {
         old_list[i].expired = 1;
     }
     // 遍历最新的报警列表，查看哪些是首次出现的报警，查看旧报警中哪些还继续生效中
-    for (let i=0; i<new_list.length; ++i) {
+    for (let i=0; i<new_list.length && i<1000; ++i) {
         let rec = new_list[i];
         let found = 0;
-        for (let j=0; j<old_list.length; ++j) {
+        for (let j=0; j<old_list.length && j<1000; ++j) {
             if (old_list[j].seqid==rec.seqid) {
                 found = 1;
                 old_list[j].expired = 0;
@@ -342,7 +324,7 @@ function notifyDiff(old_list, new_list) {
         rec.found_in_old = found;
     }
     // 对首次出现的报警做桌面通知
-    for (let i=0; i<new_list.length; ++i) {
+    for (let i=0; i<new_list.length && i<1000; ++i) {
         let rec = new_list[i];
         if (rec.found_in_old==0) {
             if (basicCheckBeforeNotify(rec))
@@ -350,7 +332,7 @@ function notifyDiff(old_list, new_list) {
         }
     }
     // 对旧报警中已经不再生效的置灰
-    for (let i=0; i<old_list.length; ++i) {
+    for (let i=0; i<old_list.length && i<1000; ++i) {
         let rec = old_list[i];
         if (rec.expired) {
             grayAlert(rec);
@@ -389,7 +371,7 @@ function hideAlert(seqid) {
 }
 // 查找指定告警的信息
 function findAlert(seqid) {
-    for (let i=0; i<latestAlertList.length; ++i) {
+    for (let i=0; i<latestAlertList.length && i<1000; ++i) {
         let rec = latestAlertList[i];
         if (rec.seqid==seqid)
             return rec;

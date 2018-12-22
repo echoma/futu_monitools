@@ -14,23 +14,21 @@ var logged_in = 0;
 var network_broken = 0;
 if(typeof($)!='undefined') {
     $(document).ready(function(){
-        if (in_monitor) {
-            // 在monitor页面里，1小时后刷新一次页面
-            setTimeout(function(){
-                if (network_broken==0)
-                    window.location.reload();
-            }, 60*60*1000);
-            // 在monitor页面里，0.5秒后检查是否是登录态界面
-            setTimeout(function(){
-                logged_in = $('#menubar').children().length!=0;
-            }, 500);
-        }
+        // 在monitor页面里，1小时后刷新一次页面
+        setTimeout(function(){
+            if (network_broken==0)
+                window.location.reload();
+        }, 60*60*1000);
+        // 在monitor页面里，0.5秒后检查是否是登录态界面
+        setTimeout(function(){
+            logged_in = $('#menubar').children().length!=0;
+        }, 500);
     });
 }
 function adjustJSON(t){
     let lines = t.split("\n");
     let ret = '';
-    for(let i=0; i<lines.length; ++i) {
+    for(let i=0; i<lines.length && i<10000; ++i) {
         let idx = lines[i].indexOf(':');
         if (idx<1) {
             ret += lines[i]+'\n';
